@@ -7,89 +7,129 @@ import { logger } from "./logger.js";
 
 // Create server instance
 const server = new McpServer({
-  name: "Lokka",
-  version: "0.1.7",
+  name: "Lokka-Microsoft",
+  version: "0.1.9",
 });
 
-logger.info("Starting Lokka MCP Server");
+logger.info("Starting Lokka Multi-Microsoft API MCP Server");
 
 // Initialize MSAL application outside the tool function
 let msalApp: ConfidentialClientApplication | null = null;
 
 server.tool(
-  "Lokka-MicrosoftGraph",
-  "A tool to call Microsoft Graph API. It supports querying a Microsoft 365 tenant using the Graph API. Updates are also supported if permissions are provided.",
+  "Lokka-MicrosoftAPIs",
+  "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management.",
   {
-    path: z.string().describe("The Graph API URL path to call (e.g. '/me', '/users')"),
+    apiType: z.enum(["graph", "azure"]).describe("Type of Microsoft API to query"),
+    path: z.string().describe("API-specific path to query"),
     method: z.enum(["get", "post", "put", "patch", "delete"]).describe("HTTP method to use"),
-    queryParams: z.record(z.string()).optional().describe("Query parameters like $filter, $select, etc. All parameters are strings."),
+    apiVersion: z.string().optional().describe("Azure Resource Management API version (required for Azure)"),
+    subscriptionId: z.string().optional().describe("Azure Subscription ID (for Azure Resource Management)"),
+    queryParams: z.record(z.string()).optional().describe("Query parameters for the request"),
     body: z.any().optional().describe("The request body (for POST, PUT, PATCH)"),
   },
-  async ({ path, method, queryParams, body }) => {
+  async ({ apiType, path, method, apiVersion, subscriptionId, queryParams, body }) => {
     try {
       if (!msalApp) {
         throw new Error("MSAL application not initialized");
       }
 
+      // Determine correct scope and base URL based on API type
+      const apiConfig = {
+        graph: {
+          scope: "https://graph.microsoft.com/.default",
+          baseUrl: "https://graph.microsoft.com/v1.0",
+        },
+        azure: {
+          scope: "https://management.azure.com/.default",
+          baseUrl: "https://management.azure.com",
+        }
+      };
+
+      const currentApi = apiConfig[apiType];
+
       // Acquire token using the initialized MSAL application
       const tokenResponse = await msalApp.acquireTokenByClientCredential({
-        scopes: ["https://graph.microsoft.com/.default"]
+        scopes: [currentApi.scope]
       });
 
       if (!tokenResponse || !tokenResponse.accessToken) {
         throw new Error("Failed to acquire access token");
       }
 
-      // Build URL with query parameters
-      let url = `https://graph.microsoft.com/v1.0${path}`;
-      if (queryParams && Object.keys(queryParams).length > 0) {
-        const searchParams = new URLSearchParams();
-        for (const [key, value] of Object.entries(queryParams)) {
-          searchParams.append(key, value);
+      // Construct the URL
+      let url = currentApi.baseUrl;
+      
+      // Special handling for Azure Resource Management
+      if (apiType === 'azure') {
+        if (subscriptionId) {
+          url += `/subscriptions/${subscriptionId}`;
         }
-        url += `?${searchParams.toString()}`;
+        
+        // Append path
+        url += path;
+
+        // Add API version (required for Azure)
+        if (!apiVersion) {
+          throw new Error("API version is required for Azure Resource Management queries");
+        }
+
+        const urlParams = new URLSearchParams({
+          'api-version': apiVersion
+        });
+
+        // Add additional query parameters if provided
+        if (queryParams) {
+          for (const [key, value] of Object.entries(queryParams)) {
+            urlParams.append(key, value);
+          }
+        }
+
+        url += `?${urlParams.toString()}`;
+      } 
+      // Handling for Microsoft Graph
+      else {
+        url += path;
+
+        // Add query parameters for Graph
+        if (queryParams && Object.keys(queryParams).length > 0) {
+          const searchParams = new URLSearchParams();
+          for (const [key, value] of Object.entries(queryParams)) {
+            searchParams.append(key, value);
+          }
+          url += `?${searchParams.toString()}`;
+        }
       }
 
-      // Prepare headers
+      // Prepare request options
       const headers: Record<string, string> = {
-        'Authorization': `Bearer ${tokenResponse.accessToken}`,        
+        'Authorization': `Bearer ${tokenResponse.accessToken}`,
+        'Content-Type': 'application/json'
       };
       
-      // For methods that send body data, add Content-Type header and ensure body is properly formatted
+      // Special header for Graph consistency
+      if (apiType === 'graph') {
+        headers['ConsistencyLevel'] = 'eventual';
+      }
+
       const requestOptions: RequestInit = {
         method: method.toUpperCase(),
         headers: headers
       };
 
-      // Only add Content-Type and body if we're using a method that supports sending data
-      // and if body is provided
+      // Add body for methods that support it
       if (["POST", "PUT", "PATCH"].includes(method.toUpperCase())) {
-        if (body) {
-          // Add Content-Type header
-          headers['Content-Type'] = 'application/json';
-          
-          // Ensure body is properly stringified
-          requestOptions.body = typeof body === 'string' ? body : JSON.stringify(body);
-          
-          // Log the request body for debugging
-          logger.info(`Request body for ${method} ${path}: ${requestOptions.body}`);
-        } else {
-          // If no body is provided for methods that require it, send an empty object
-          headers['Content-Type'] = 'application/json';
-          requestOptions.body = JSON.stringify({});
-          logger.info(`No body provided for ${method} ${path}. Using empty object instead.`);
-        }
-      }
-      else if ("GET" === method.toUpperCase()) {
-        headers['ConsistencyLevel'] = 'eventual';
+        requestOptions.body = body ? 
+          (typeof body === 'string' ? body : JSON.stringify(body)) : 
+          JSON.stringify({});
       }
 
-      // Make Graph API request
-      const graphResponse = await fetch(url, requestOptions);
+      // Make API request
+      const apiResponse = await fetch(url, requestOptions);
 
       // Handle response
       let responseData: any;
-      const responseText = await graphResponse.text();
+      const responseText = await apiResponse.text();
       
       try {
         // Try to parse as JSON
@@ -99,12 +139,12 @@ server.tool(
         responseData = { rawResponse: responseText };
       }
 
-      if (!graphResponse.ok) {
-        logger.error(`Graph API error for ${method} ${path}:`, responseData);
-        throw new Error(`Graph API error (${graphResponse.status}): ${JSON.stringify(responseData)}`);
+      if (!apiResponse.ok) {
+        logger.error(`API error for ${method} ${path}:`, responseData);
+        throw new Error(`API error (${apiResponse.status}): ${JSON.stringify(responseData)}`);
       }
 
-      let resultText = `Result for ${method} ${path}:\n\n`;
+      let resultText = `Result for ${apiType} API - ${method} ${path}:\n\n`;
       resultText += JSON.stringify(responseData, null, 2);
 
       return {
@@ -117,7 +157,7 @@ server.tool(
       };
 
     } catch (error) {
-      logger.error("Error in microsoftGraph tool:", error);
+      logger.error("Error in Multi-Microsoft API tool:", error);
       return {
         content: [
           {
