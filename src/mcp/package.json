@@ -32,12 +32,15 @@
     "build"
   ],
   "dependencies": {
-    "@azure/msal-node": "^3.3.0",
+    "@azure/identity": "^4.3.0",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
     "@modelcontextprotocol/sdk": "^1.7.0",
+    "isomorphic-fetch": "^3.0.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/node": "^22.13.10",
+    "@types/isomorphic-fetch": "^0.0.39",
+    "@types/node": "^22.13.17",
     "typescript": "^5.8.2"
   }
 }
