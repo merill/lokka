@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/merill-lokka-badge.png)](https://mseep.ai/app/merill-lokka)
+
 # Lokka
 
 [![npm version](https://badge.fury.io/js/@merill%2Flokka.svg)](https://badge.fury.io/js/@merill%2Flokka)
