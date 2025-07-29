@@ -21,8 +21,16 @@ let graphClient = null;
 // Check USE_GRAPH_BETA environment variable
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
 const defaultGraphApiVersion = getDefaultGraphApiVersion();
+// Get allowed methods from environment variable or use default
 const defaultAllowedMethods = ["get", "post", "put", "patch", "delete"];
-const allowedMethods = process.env.ALLOWED_METHODS ? process.env.ALLOWED_METHODS.split(",") : defaultAllowedMethods;
+const allowedMethods = (process.env.ALLOWED_METHODS
+    ? process.env.ALLOWED_METHODS.split(",")
+    : defaultAllowedMethods).map(m => m.trim().toLowerCase());
+// Validate allowedMethods: throw error if any method is not in defaultAllowedMethods
+const invalidMethods = allowedMethods.filter(m => !defaultAllowedMethods.includes(m));
+if (invalidMethods.length > 0) {
+    throw new Error(`Invalid HTTP method(s) in ALLOWED_METHODS: ${invalidMethods.join(", ")}. Allowed methods are: ${defaultAllowedMethods.join(", ")}`);
+}
 logger.info(`Graph API default version: ${defaultGraphApiVersion} (USE_GRAPH_BETA=${process.env.USE_GRAPH_BETA || 'undefined'})`);
 server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management. IMPORTANT: For Graph API GET requests using advanced query parameters ($filter, $count, $search, $orderby), you are ADVISED to set 'consistencyLevel: \"eventual\"'.", {
     apiType: z.enum(["graph", "azure"]).describe("Type of Microsoft API to query. Options: 'graph' for Microsoft Graph (Entra) or 'azure' for Azure Resource Management."),
