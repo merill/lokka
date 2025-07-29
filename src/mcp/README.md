@@ -207,6 +207,8 @@ The configuration of the server is done using environment variables. The followi
 | `REDIRECT_URI` | Redirect URI for interactive authentication (default: `http://localhost:3200`). | No |
 | `ACCESS_TOKEN` | Initial access token for client-provided token mode. | No |
 | `USE_GRAPH_BETA` | Set to "false" to force all Graph API calls to use v1.0 instead of beta (default: true, allows beta). | No |
+| `ALLOWED_METHODS` | Comma-separated list of HTTP methods allowed for the `Lokka-Microsoft` tool (e.g., `get,post,put,patch,delete`). If not set, defaults to all supported methods. | No |
+
 
 ## Contributors
 

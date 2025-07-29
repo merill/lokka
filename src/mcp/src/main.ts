@@ -26,6 +26,8 @@ let graphClient: Client | null = null;
 // Check USE_GRAPH_BETA environment variable
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
 const defaultGraphApiVersion = getDefaultGraphApiVersion();
+const defaultAllowedMethods = ["get", "post", "put", "patch", "delete"];
+const allowedMethods: string[] = process.env.ALLOWED_METHODS ? process.env.ALLOWED_METHODS.split(",") : defaultAllowedMethods;
 
 logger.info(`Graph API default version: ${defaultGraphApiVersion} (USE_GRAPH_BETA=${process.env.USE_GRAPH_BETA || 'undefined'})`);
 
@@ -35,7 +37,7 @@ server.tool(
   {
     apiType: z.enum(["graph", "azure"]).describe("Type of Microsoft API to query. Options: 'graph' for Microsoft Graph (Entra) or 'azure' for Azure Resource Management."),
     path: z.string().describe("The Azure or Graph API URL path to call (e.g. '/users', '/groups', '/subscriptions')"),
-    method: z.enum(["get", "post", "put", "patch", "delete"]).describe("HTTP method to use"),
+    method: z.enum(allowedMethods as ["get", "post", "put", "patch", "delete"]).describe(`HTTP method to use (allowed methods: ${allowedMethods.join(", ")})`),
     apiVersion: z.string().optional().describe("Azure Resource Management API version (required for apiType Azure)"),
     subscriptionId: z.string().optional().describe("Azure Subscription ID (for Azure Resource Management)."),
     queryParams: z.record(z.string()).optional().describe("Query parameters for the request"),
