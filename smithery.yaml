@@ -1,0 +1,29 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({command: 'node', args: ['build/main.js'], env: {TENANT_ID: config.tenantId, CLIENT_ID: config.clientId, CLIENT_SECRET: config.clientSecret}})
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - tenantId
+      - clientId
+      - clientSecret
+    properties:
+      tenantId:
+        type: string
+        description: The ID of the Microsoft Entra tenant.
+      clientId:
+        type: string
+        description: The ID of the application registered in Microsoft Entra.
+      clientSecret:
+        type: string
+        description: The client secret of the application registered in Microsoft Entra.
+  exampleConfig:
+    tenantId: 00000000-0000-0000-0000-000000000000
+    clientId: 11111111-1111-1111-1111-111111111111
+    clientSecret: your-client-secret

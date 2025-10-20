@@ -1,5 +1,6 @@
 # Lokka
 
+[![smithery badge](https://smithery.io/badge/@merill/lokka)](https://smithery.io/protocol/@merill/lokka)
 [![npm version](https://badge.fury.io/js/@merill%2Flokka.svg)](https://badge.fury.io/js/@merill%2Flokka)
 
 Lokka is a model-context-protocol server for the Microsoft Graph and Azure RM APIs that allows you to query and manage your Azure and Microsoft 365 tenants with AI.
