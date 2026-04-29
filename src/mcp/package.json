@@ -1,29 +1,28 @@
 {
-  "name": "@merill/lokka",
-  "version": "0.3.0",
-  "description": "Lokka is a Model Context Protocol (MCP) server for Microsoft Graph.",
+  "name": "eligraph",
+  "version": "1.0.0",
+  "description": "EliGraph is a remote MCP server for Microsoft Graph and Azure RM APIs, with delegated auth, audit logging, and business rules.",
   "license": "MIT",
-  "author": "Merill",
-  "homepage": "https://lokka.dev",
-  "bugs": "https://github.com/merill/lokka/issues",
+  "author": "Ishak CHENNOUF <chennoufishak@gmail.com>",
+  "homepage": "https://github.com/Ishak-rav/EliGraph",
+  "bugs": "https://github.com/Ishak-rav/EliGraph/issues",
   "main": "main.js",
   "type": "module",
   "keywords": [
     "mcp",
-    "graph",
-    "microsoft",
-    "graph",
-    "model",
-    "context",
-    "protocol"
+    "microsoft-graph",
+    "azure",
+    "entra",
+    "m365",
+    "model-context-protocol"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/merill/lokka.git",
+    "url": "git+https://github.com/Ishak-rav/EliGraph.git",
     "directory": "src/mcp"
   },
   "bin": {
-    "lokka": "build/main.js"
+    "eligraph": "build/main.js"
   },
   "scripts": {
     "build": "tsc",

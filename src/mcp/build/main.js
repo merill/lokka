@@ -6,15 +6,15 @@ import { Client, PageIterator } from "@microsoft/microsoft-graph-client";
 import fetch from 'isomorphic-fetch'; // Required polyfill for Graph client
 import { logger } from "./logger.js";
 import { AuthManager, AuthMode } from "./auth.js";
-import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
+import { EliGraphDefaultClientId, EliGraphDefaultTenantId, EliGraphDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 // Set up global fetch for the Microsoft Graph client
 global.fetch = fetch;
 // Create server instance
 const server = new McpServer({
-    name: "Lokka-Microsoft",
-    version: "0.2.0", // Updated version for token-based auth support
+    name: "EliGraph",
+    version: "1.0.0",
 });
-logger.info("Starting Lokka Multi-Microsoft API MCP Server (v0.2.0 - Token-Based Auth Support)");
+logger.info("Starting EliGraph MCP Server (v1.0.0)");
 // Initialize authentication and clients
 let authManager = null;
 let graphClient = null;
@@ -22,7 +22,7 @@ let graphClient = null;
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
 const defaultGraphApiVersion = getDefaultGraphApiVersion();
 logger.info(`Graph API default version: ${defaultGraphApiVersion} (USE_GRAPH_BETA=${process.env.USE_GRAPH_BETA || 'undefined'})`);
-server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management. IMPORTANT: For Graph API GET requests using advanced query parameters ($filter, $count, $search, $orderby), you are ADVISED to set 'consistencyLevel: \"eventual\"'.", {
+server.tool("EliGraph", "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management. IMPORTANT: For Graph API GET requests using advanced query parameters ($filter, $count, $search, $orderby), you are ADVISED to set 'consistencyLevel: \"eventual\"'.", {
     apiType: z.enum(["graph", "azure"]).describe("Type of Microsoft API to query. Options: 'graph' for Microsoft Graph (Entra) or 'azure' for Azure Resource Management."),
     path: z.string().describe("The Azure or Graph API URL path to call (e.g. '/users', '/groups', '/subscriptions')"),
     method: z.enum(["get", "post", "put", "patch", "delete"]).describe("HTTP method to use"),
@@ -36,7 +36,7 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
 }, async ({ apiType, path, method, apiVersion, subscriptionId, queryParams, body, graphApiVersion, fetchAll, consistencyLevel }) => {
     // Override graphApiVersion if USE_GRAPH_BETA is explicitly set to false
     const effectiveGraphApiVersion = !useGraphBeta ? "v1.0" : graphApiVersion;
-    logger.info(`Executing Lokka-Microsoft tool with params: apiType=${apiType}, path=${path}, method=${method}, graphApiVersion=${effectiveGraphApiVersion}, fetchAll=${fetchAll}, consistencyLevel=${consistencyLevel}`);
+    logger.info(`Executing EliGraph tool: apiType=${apiType}, path=${path}, method=${method}, graphApiVersion=${effectiveGraphApiVersion}, fetchAll=${fetchAll}, consistencyLevel=${consistencyLevel}`);
     let determinedUrl;
     try {
         let responseData;
@@ -223,7 +223,7 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
         };
     }
     catch (error) {
-        logger.error(`Error in Lokka-Microsoft tool (apiType: ${apiType}, path: ${path}, method: ${method}):`, error); // Added more context to error log
+        logger.error(`Error in EliGraph tool (apiType: ${apiType}, path: ${path}, method: ${method}):`, error);
         // Try to determine the base URL even in case of error
         if (!determinedUrl) {
             determinedUrl = apiType === 'graph'
@@ -380,9 +380,9 @@ server.tool("add-graph-permission", "Request additional Microsoft Graph permissi
         }
         logger.info(`Requesting additional Graph permissions: ${scopes.join(', ')}`);
         // Get current configuration with defaults for interactive auth
-        const tenantId = process.env.TENANT_ID || LokkaDefaultTenantId;
-        const clientId = process.env.CLIENT_ID || LokkaClientId;
-        const redirectUri = process.env.REDIRECT_URI || LokkaDefaultRedirectUri;
+        const tenantId = process.env.TENANT_ID || EliGraphDefaultTenantId;
+        const clientId = process.env.CLIENT_ID || EliGraphDefaultClientId;
+        const redirectUri = process.env.REDIRECT_URI || EliGraphDefaultRedirectUri;
         logger.info(`Using tenant ID: ${tenantId}, client ID: ${clientId} for interactive authentication`);
         // Create a new interactive credential with the requested scopes
         const { InteractiveBrowserCredential, DeviceCodeCredential } = await import("@azure/identity");
@@ -392,7 +392,8 @@ server.tool("add-graph-permission", "Request additional Microsoft Graph permissi
         // Request token with the new scopes - this will trigger interactive authentication
         const scopeString = scopes.map(scope => `https://graph.microsoft.com/${scope}`).join(' ');
         logger.info(`Requesting fresh token with scopes: ${scopeString}`);
-        console.log(`\n🔐 Requesting Additional Graph Permissions:`);
+        logger.info(`Requesting additional Graph permissions: ${scopes.join(', ')}`);
+        console.log(`\nEliGraph — Requesting Additional Graph Permissions:`);
         console.log(`Scopes: ${scopes.join(', ')}`);
         console.log(`You will be prompted to sign in to grant these permissions.\n`);
         let newCredential;
@@ -414,7 +415,7 @@ server.tool("add-graph-permission", "Request additional Microsoft Graph permissi
                 tenantId: tenantId,
                 clientId: clientId,
                 userPromptCallback: (info) => {
-                    console.log(`\n🔐 Additional Permissions Required:`);
+                    console.log(`\nEliGraph — Additional Permissions Required:`);
                     console.log(`Please visit: ${info.verificationUri}`);
                     console.log(`And enter code: ${info.userCode}`);
                     console.log(`Requested scopes: ${scopes.join(', ')}\n`);
@@ -524,8 +525,8 @@ async function main() {
     let clientId;
     if (authMode === AuthMode.Interactive) {
         // Interactive mode can use defaults
-        tenantId = process.env.TENANT_ID || LokkaDefaultTenantId;
-        clientId = process.env.CLIENT_ID || LokkaClientId;
+        tenantId = process.env.TENANT_ID || EliGraphDefaultTenantId;
+        clientId = process.env.CLIENT_ID || EliGraphDefaultClientId;
         logger.info(`Interactive mode using tenant ID: ${tenantId}, client ID: ${clientId}`);
     }
     else {

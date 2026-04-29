@@ -2,7 +2,7 @@ import { AccessToken, TokenCredential, ClientSecretCredential, ClientCertificate
 import { AuthenticationProvider } from "@microsoft/microsoft-graph-client";
 import jwt from "jsonwebtoken";
 import { logger } from "./logger.js";
-import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri } from "./constants.js";
+import { EliGraphDefaultClientId, EliGraphDefaultTenantId, EliGraphDefaultRedirectUri } from "./constants.js";
 
 // Constants
 const ONE_HOUR_IN_MS = 60 * 60 * 1000; // One hour in milliseconds
@@ -161,17 +161,17 @@ export class AuthManager {
 
       case AuthMode.Interactive:
         // Use defaults if not provided
-        const tenantId = this.config.tenantId || LokkaDefaultTenantId;
-        const clientId = this.config.clientId || LokkaClientId;
-        
+        const tenantId = this.config.tenantId || EliGraphDefaultTenantId;
+        const clientId = this.config.clientId || EliGraphDefaultClientId;
+
         logger.info(`Initializing Interactive authentication with tenant ID: ${tenantId}, client ID: ${clientId}`);
-        
+
         try {
           // Try Interactive Browser first
           this.credential = new InteractiveBrowserCredential({
             tenantId: tenantId,
             clientId: clientId,
-            redirectUri: this.config.redirectUri || LokkaDefaultRedirectUri,
+            redirectUri: this.config.redirectUri || EliGraphDefaultRedirectUri,
           });
         } catch (error) {
           // Fallback to Device Code flow
