@@ -136,7 +136,8 @@ export class AuthManager {
         this.credential = new ClientSecretCredential(
           this.config.tenantId,
           this.config.clientId,
-          this.config.clientSecret
+          this.config.clientSecret,
+          { additionallyAllowedTenants: ['*'] }
         );
         break;
 
@@ -153,10 +154,15 @@ export class AuthManager {
           throw new Error("Certificate mode requires tenantId, clientId, and certificatePath");
         }
         logger.info("Initializing Certificate authentication");
-        this.credential = new ClientCertificateCredential(this.config.tenantId, this.config.clientId, {
-          certificatePath: this.config.certificatePath,
-          certificatePassword: this.config.certificatePassword
-        });
+        this.credential = new ClientCertificateCredential(
+          this.config.tenantId,
+          this.config.clientId,
+          {
+            certificatePath: this.config.certificatePath,
+            certificatePassword: this.config.certificatePassword
+          },
+          { additionallyAllowedTenants: ['*'] }
+        );
         break;
 
       case AuthMode.Interactive:
@@ -172,6 +178,7 @@ export class AuthManager {
             tenantId: tenantId,
             clientId: clientId,
             redirectUri: this.config.redirectUri || LokkaDefaultRedirectUri,
+            additionallyAllowedTenants: ['*'],
           });
         } catch (error) {
           // Fallback to Device Code flow
@@ -179,6 +186,7 @@ export class AuthManager {
           this.credential = new DeviceCodeCredential({
             tenantId: tenantId,
             clientId: clientId,
+            additionallyAllowedTenants: ['*'],
             userPromptCallback: (info: DeviceCodeInfo) => {
               console.log(`\n🔐 Authentication Required:`);
               console.log(`Please visit: ${info.verificationUri}`);

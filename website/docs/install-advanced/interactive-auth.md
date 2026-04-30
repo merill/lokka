@@ -53,3 +53,13 @@ The `USE_INTERACTIVE` needs to be set to `true` when using a custom app for inte
     }
   }
 ```
+
+## Guest (B2B) access to other tenants
+
+If your account is a guest (B2B collaboration) in another Microsoft Entra tenant, you can query that tenant directly from the same session — no need to sign out or restart Lokka.
+
+The `Lokka-Microsoft` tool accepts an optional `tenantId` parameter. Ask the agent something like:
+
+> *"Get `/organization` from tenant `contoso.onmicrosoft.com` where I'm a guest."*
+
+Lokka will request a token scoped to that tenant for your user account. Depending on your browser session and SSO state, an additional sign-in prompt may appear the first time you target a new tenant — this is the standard cross-tenant authentication flow and is expected.

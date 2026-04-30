@@ -103,7 +103,7 @@ export class AuthManager {
                     throw new Error("Client credentials mode requires tenantId, clientId, and clientSecret");
                 }
                 logger.info("Initializing Client Credentials authentication");
-                this.credential = new ClientSecretCredential(this.config.tenantId, this.config.clientId, this.config.clientSecret);
+                this.credential = new ClientSecretCredential(this.config.tenantId, this.config.clientId, this.config.clientSecret, { additionallyAllowedTenants: ['*'] });
                 break;
             case AuthMode.ClientProvidedToken:
                 logger.info("Initializing Client Provided Token authentication");
@@ -117,7 +117,7 @@ export class AuthManager {
                 this.credential = new ClientCertificateCredential(this.config.tenantId, this.config.clientId, {
                     certificatePath: this.config.certificatePath,
                     certificatePassword: this.config.certificatePassword
-                });
+                }, { additionallyAllowedTenants: ['*'] });
                 break;
             case AuthMode.Interactive:
                 // Use defaults if not provided
@@ -130,6 +130,7 @@ export class AuthManager {
                         tenantId: tenantId,
                         clientId: clientId,
                         redirectUri: this.config.redirectUri || LokkaDefaultRedirectUri,
+                        additionallyAllowedTenants: ['*'],
                     });
                 }
                 catch (error) {
@@ -138,6 +139,7 @@ export class AuthManager {
                     this.credential = new DeviceCodeCredential({
                         tenantId: tenantId,
                         clientId: clientId,
+                        additionallyAllowedTenants: ['*'],
                         userPromptCallback: (info) => {
                             console.log(`\n🔐 Authentication Required:`);
                             console.log(`Please visit: ${info.verificationUri}`);

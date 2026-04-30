@@ -8,6 +8,10 @@ This authentication method uses the client credentials flow to authenticate the 
 
 You can use either certificate (recommended) or client secret authentication with the following configuration. In both instances, you need to create a Microsoft Entra application and grant it the necessary permissions.
 
+:::warning TENANT_ID must be a specific tenant
+The Microsoft identity platform does **not** support `common` or `organizations` as `TENANT_ID` values for app-only (client credentials) authentication. You must provide a specific tenant GUID (e.g. `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`) or a verified domain (e.g. `contoso.onmicrosoft.com`). Lokka will refuse to start with `common`/`organizations` in app-only mode.
+:::
+
 ## Create an Entra app for App-Only auth with Lokka
 
 - Open [Entra admin center](https://entra.microsoft.com) > **Identity** > **Applications** > **App registrations**
@@ -74,3 +78,18 @@ You can now configure Lokka in VSCode, Claude using the config below.
   }
 }
 ```
+
+## Querying multiple tenants in a single session
+
+If your Entra application is registered as **multi-tenant** (`Accounts in any organizational directory`) and admin consent has been granted in several tenants, Lokka can query each of them in the same session — no restart required.
+
+The `Lokka-Microsoft` tool exposes an optional `tenantId` parameter. When provided, the request acquires an access token for that specific tenant instead of the default `TENANT_ID`. Just ask the agent in plain language:
+
+> *"Get `/organization` from tenant `contoso.onmicrosoft.com`, then from tenant `fabrikam.onmicrosoft.com`."*
+
+The agent will pass `tenantId` per call and Lokka transparently obtains a token scoped to each target tenant.
+
+**Requirements:**
+- The Entra app must be registered as multi-tenant.
+- Admin consent must be granted in every target tenant.
+- `TENANT_ID` (the default) must still be a specific tenant GUID/domain — it is the home tenant used when no `tenantId` override is provided.

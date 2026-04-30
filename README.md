@@ -66,6 +66,8 @@ Traditional app-only authentication. You can use either certificate (recommended
 
 See [Install Guide](https://lokka.dev/docs/install) for more details on how to create an Entra app.
 
+> ⚠️ For app-only authentication, `TENANT_ID` must be a specific tenant GUID or verified domain. The values `common` and `organizations` are not supported by the Microsoft identity platform for the client credentials flow and Lokka will refuse to start with them.
+
 #### App-Only Auth with Certificate
 
 App only authentication using a PEM-encoded client certificate:
@@ -136,6 +138,19 @@ When using client-provided token mode:
 2. Use the `set-access-token` tool to provide a valid Microsoft Graph access token
 3. Use the `get-auth-status` tool to verify authentication status
 4. Refresh tokens as needed using `set-access-token`
+
+### Multi-tenant queries (`tenantId` parameter)
+
+The `Lokka-Microsoft` tool accepts an optional `tenantId` parameter so a single Lokka session can query multiple tenants without restarting:
+
+- **App-only modes** (client credentials, certificate): if your Entra app is registered as multi-tenant and admin consent has been granted in each target tenant, set `tenantId` to query each tenant transparently.
+- **Interactive mode**: if your user account is a guest (B2B) in another tenant, set `tenantId` to query that tenant. An additional sign-in prompt may appear the first time, depending on your browser SSO state.
+- **Client-provided token mode**: not supported (the supplied token is bound to one tenant).
+
+Example natural-language prompt to the agent:
+> *"Get `/organization` from tenant `contoso.onmicrosoft.com`, then from `fabrikam.onmicrosoft.com`."*
+
+See the [advanced install guide](https://lokka.dev/docs/install-advanced/) for full details.
 
 ## New Tools
 

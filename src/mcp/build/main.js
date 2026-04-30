@@ -22,6 +22,27 @@ let graphClient = null;
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
 const defaultGraphApiVersion = getDefaultGraphApiVersion();
 logger.info(`Graph API default version: ${defaultGraphApiVersion} (USE_GRAPH_BETA=${process.env.USE_GRAPH_BETA || 'undefined'})`);
+async function buildTenantSpecificGraphClient(tenantId) {
+    if (!authManager) {
+        throw new Error("Auth manager not initialized");
+    }
+    const mode = authManager.getAuthMode();
+    if (mode === AuthMode.ClientProvidedToken) {
+        throw new Error("The 'tenantId' parameter is not supported in client_provided_token mode (the supplied token is bound to a single tenant).");
+    }
+    const credential = authManager.getAzureCredential();
+    return Client.initWithMiddleware({
+        authProvider: {
+            getAccessToken: async () => {
+                const token = await credential.getToken("https://graph.microsoft.com/.default", { tenantId });
+                if (!token) {
+                    throw new Error(`Failed to acquire Graph token for tenant ${tenantId}`);
+                }
+                return token.token;
+            }
+        }
+    });
+}
 server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management. IMPORTANT: For Graph API GET requests using advanced query parameters ($filter, $count, $search, $orderby), you are ADVISED to set 'consistencyLevel: \"eventual\"'.", {
     apiType: z.enum(["graph", "azure"]).describe("Type of Microsoft API to query. Options: 'graph' for Microsoft Graph (Entra) or 'azure' for Azure Resource Management."),
     path: z.string().describe("The Azure or Graph API URL path to call (e.g. '/users', '/groups', '/subscriptions')"),
@@ -33,7 +54,8 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
     graphApiVersion: z.enum(["v1.0", "beta"]).optional().default(defaultGraphApiVersion).describe(`Microsoft Graph API version to use (default: ${defaultGraphApiVersion})`),
     fetchAll: z.boolean().optional().default(false).describe("Set to true to automatically fetch all pages for list results (e.g., users, groups). Default is false."),
     consistencyLevel: z.string().optional().describe("Graph API ConsistencyLevel header. ADVISED to be set to 'eventual' for Graph GET requests using advanced query parameters ($filter, $count, $search, $orderby)."),
-}, async ({ apiType, path, method, apiVersion, subscriptionId, queryParams, body, graphApiVersion, fetchAll, consistencyLevel }) => {
+    tenantId: z.string().optional().describe("Optional Microsoft Entra tenant ID (GUID or domain) to target for this request. When provided, the request acquires an access token for this tenant instead of the default TENANT_ID. Useful for: (1) multi-tenant app-only scenarios (client_credentials/certificate), (2) interactive users who are guests (B2B) in another tenant — note that an additional sign-in prompt may appear if no silent SSO is available. Not supported in client_provided_token mode."),
+}, async ({ apiType, path, method, apiVersion, subscriptionId, queryParams, body, graphApiVersion, fetchAll, consistencyLevel, tenantId }) => {
     // Override graphApiVersion if USE_GRAPH_BETA is explicitly set to false
     const effectiveGraphApiVersion = !useGraphBeta ? "v1.0" : graphApiVersion;
     logger.info(`Executing Lokka-Microsoft tool with params: apiType=${apiType}, path=${path}, method=${method}, graphApiVersion=${effectiveGraphApiVersion}, fetchAll=${fetchAll}, consistencyLevel=${consistencyLevel}`);
@@ -45,9 +67,12 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
             if (!graphClient) {
                 throw new Error("Graph client not initialized");
             }
+            const effectiveGraphClient = tenantId
+                ? await buildTenantSpecificGraphClient(tenantId)
+                : graphClient;
             determinedUrl = `https://graph.microsoft.com/${effectiveGraphApiVersion}`; // For error reporting
             // Construct the request using the Graph SDK client
-            let request = graphClient.api(path).version(effectiveGraphApiVersion);
+            let request = effectiveGraphClient.api(path).version(effectiveGraphApiVersion);
             // Add query parameters if provided and not empty
             if (queryParams && Object.keys(queryParams).length > 0) {
                 request = request.query(queryParams);
@@ -72,7 +97,7 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
                             return true; // Return true to continue iteration
                         };
                         // Create a PageIterator starting from the first response
-                        const pageIterator = new PageIterator(graphClient, firstPageResponse, callback);
+                        const pageIterator = new PageIterator(effectiveGraphClient, firstPageResponse, callback);
                         // Iterate over all remaining pages
                         await pageIterator.iterate();
                         // Construct final response with context and combined values under 'value' key
@@ -111,10 +136,16 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
             if (!authManager) {
                 throw new Error("Auth manager not initialized");
             }
+            if (tenantId) {
+                const mode = authManager.getAuthMode();
+                if (mode === AuthMode.ClientProvidedToken) {
+                    throw new Error("The 'tenantId' parameter is not supported in client_provided_token mode (the supplied token is bound to a single tenant).");
+                }
+            }
             determinedUrl = "https://management.azure.com"; // For error reporting
             // Acquire token for Azure RM
             const azureCredential = authManager.getAzureCredential();
-            const tokenResponse = await azureCredential.getToken("https://management.azure.com/.default");
+            const tokenResponse = await azureCredential.getToken("https://management.azure.com/.default", tenantId ? { tenantId } : undefined);
             if (!tokenResponse || !tokenResponse.token) {
                 throw new Error("Failed to acquire Azure access token");
             }
@@ -155,7 +186,7 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
                     logger.info(`Fetching Azure RM page: ${currentUrl}`);
                     // Re-acquire token for each page (Azure tokens might expire)
                     const azureCredential = authManager.getAzureCredential();
-                    const currentPageTokenResponse = await azureCredential.getToken("https://management.azure.com/.default");
+                    const currentPageTokenResponse = await azureCredential.getToken("https://management.azure.com/.default", tenantId ? { tenantId } : undefined);
                     if (!currentPageTokenResponse || !currentPageTokenResponse.token) {
                         throw new Error("Failed to acquire Azure access token during pagination");
                     }
@@ -541,10 +572,20 @@ async function main() {
         if (!tenantId || !clientId || !clientSecret) {
             throw new Error("Client credentials mode requires explicit TENANT_ID, CLIENT_ID, and CLIENT_SECRET environment variables");
         }
+        if (tenantId === 'common' || tenantId === 'organizations') {
+            throw new Error(`TENANT_ID value "${tenantId}" is not supported for app-only authentication. ` +
+                "The Microsoft identity platform requires a specific tenant GUID or domain " +
+                "(e.g. 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' or 'contoso.onmicrosoft.com') for client credentials / certificate auth.");
+        }
     }
     else if (authMode === AuthMode.Certificate) {
         if (!tenantId || !clientId || !certificatePath) {
             throw new Error("Certificate mode requires explicit TENANT_ID, CLIENT_ID, and CERTIFICATE_PATH environment variables");
+        }
+        if (tenantId === 'common' || tenantId === 'organizations') {
+            throw new Error(`TENANT_ID value "${tenantId}" is not supported for app-only authentication. ` +
+                "The Microsoft identity platform requires a specific tenant GUID or domain " +
+                "(e.g. 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' or 'contoso.onmicrosoft.com') for client credentials / certificate auth.");
         }
     }
     // Note: Client token mode can start without a token and receive it later
