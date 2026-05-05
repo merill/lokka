@@ -1,0 +1,13 @@
+services:
+  eligraph:
+    build: ./src/mcp
+    container_name: eligraph
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    env_file: .env
+    volumes:
+      - eligraph-logs:/app/logs
+
+volumes:
+  eligraph-logs:

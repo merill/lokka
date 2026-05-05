@@ -1,48 +1,25 @@
 import { appendFileSync } from "fs";
-import { join } from "path";
 
-const LOG_FILE = join(
-  import.meta.dirname,
-  "mcp-server.log",
-);
+const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+const LOG_FILE = process.env.LOG_FILE;
 
-function formatMessage(
-  level: string,
-  message: string,
-  data?: unknown,
-): string {
+const LEVELS: Record<string, number> = { debug: 0, info: 1, warn: 2, error: 3 };
+const currentLevel = LEVELS[LOG_LEVEL] ?? 1;
+
+function log(level: string, message: string, data?: unknown): void {
+  if ((LEVELS[level] ?? 0) < currentLevel) return;
   const timestamp = new Date().toISOString();
-  const dataStr = data
-    ? `\n${JSON.stringify(data, null, 2)}`
-    : "";
-  return `[${timestamp}] [${level}] ${message}${dataStr}\n`;
+  const dataStr = data ? ` ${JSON.stringify(data)}` : '';
+  const line = `[${timestamp}] [${level.toUpperCase()}] ${message}${dataStr}\n`;
+  process.stdout.write(line);
+  if (LOG_FILE) {
+    appendFileSync(LOG_FILE, line);
+  }
 }
 
 export const logger = {
-  info(message: string, data?: unknown) {
-    const logMessage = formatMessage(
-      "INFO",
-      message,
-      data,
-    );
-    appendFileSync(LOG_FILE, logMessage);
-  },
-
-  error(message: string, error?: unknown) {
-    const logMessage = formatMessage(
-      "ERROR",
-      message,
-      error,
-    );
-    appendFileSync(LOG_FILE, logMessage);
-  },
-
-  // debug(message: string, data?: unknown) {
-  //   const logMessage = formatMessage(
-  //     "DEBUG",
-  //     message,
-  //     data,
-  //   );
-  //   appendFileSync(LOG_FILE, logMessage);
-  // },
+  debug: (message: string, data?: unknown) => log('debug', message, data),
+  info:  (message: string, data?: unknown) => log('info',  message, data),
+  warn:  (message: string, data?: unknown) => log('warn',  message, data),
+  error: (message: string, data?: unknown) => log('error', message, data),
 };

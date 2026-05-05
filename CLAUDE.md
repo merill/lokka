@@ -88,10 +88,10 @@ Clients MCP
 - **MCP SDK** : `@modelcontextprotocol/sdk` (transport Streamable)
 - **Auth** : MSAL Node (`@azure/msal-node`) pour le flow OBO delegated
 - **Graph client** : `@microsoft/microsoft-graph-client`
-- **Logging** : `winston` → JSON structuré → stdout + fichier + (optionnel) Azure Monitor
+- **Logging** : logger custom stdout (Chantier 1) → `winston` JSON structuré + fichier + Azure Monitor (Chantier 2)
 - **Conteneurisation** : Docker multi-stage + docker-compose
-- **Reverse proxy** : nginx + Let's Encrypt (certbot)
-- **CI/CD** : GitHub Actions (push main → deploy VPS)
+- **Reverse proxy** : nginx + Let's Encrypt (certbot) — à configurer lors de l'acquisition du VPS
+- **CI/CD** : GitHub Actions (push main → deploy VPS) — à créer lors de l'acquisition du VPS
 
 ---
 
@@ -104,9 +104,9 @@ eligraph/
 ├── docker-compose.yml
 ├── .env.example                 ← template des variables d'env (jamais .env réel)
 ├── .gitignore
-├── .github/
+├── .github/                     ← à créer lors de l'acquisition du VPS
 │   └── workflows/
-│       └── deploy.yml           ← CI/CD GitHub Actions
+│       └── deploy.yml           ← CI/CD GitHub Actions (à venir)
 └── src/
     └── mcp/
         ├── package.json
@@ -114,10 +114,12 @@ eligraph/
         ├── Dockerfile
         ├── .dockerignore
         └── src/
-            ├── index.ts         ← point d'entrée stdio (Lokka upstream, conservé)
-            ├── server.ts        ← wrapper HTTP Express (ajout EliGraph)
+            ├── main.ts          ← point d'entrée stdio (Lokka upstream, conservé)
+            ├── app.ts           ← factory createEliGraphServer() (ajout EliGraph)
+            ├── server.ts        ← wrapper HTTP Express + gestion sessions MCP (ajout EliGraph)
+            ├── logger.ts        ← logger stdout + fichier opt-in (Chantier 1, migre vers winston au Chantier 2)
             ├── auth.ts          ← gestion des modes d'auth (fork Lokka)
-            ├── graphClient.ts   ← client Graph (fork Lokka)
+            ├── constants.ts     ← constantes projet
             ├── middleware/
             │   ├── auditLogger.ts    ← logging structuré (Chantier 2)
             │   ├── businessRules.ts  ← garde-fous métier (Chantier 3)
@@ -152,25 +154,27 @@ Toujours utiliser `.env` en local (jamais commité). En prod, injectées via doc
 
 ## Chantiers de développement
 
-### Chantier 1 — Fork + VPS + Docker *(en cours)*
+### Chantier 1 — Fork + VPS + Docker *(en cours — déploiement VPS en attente)*
 
-**Objectif** : transformer Lokka local (stdio) en service HTTP déployé sur VPS.
+**Objectif** : transformer Lokka local (stdio) en service HTTP déployable sur VPS.
 
 **Tâches** :
 
-- [ ] Fork `merill/lokka` → `eligraph`
-- [ ] Explorer et documenter `src/mcp/src/` (fichiers existants)
-- [ ] Créer `server.ts` : wrapper Express avec endpoint `/mcp` (MCP Streamable) et `/health`
-- [ ] Créer `Dockerfile` multi-stage (builder + runtime non-root)
-- [ ] Créer `docker-compose.yml` avec bind `127.0.0.1:3000`
+- [x] Fork `merill/lokka` → `eligraph` (rebrand commit 225e0d2)
+- [x] Explorer et documenter `src/mcp/src/` (fichiers existants)
+- [x] Extraire `createEliGraphServer()` dans `app.ts` (factory MCP server)
+- [x] Créer `server.ts` : wrapper Express avec endpoint `/mcp` (MCP Streamable) et `/health`
+- [x] Corriger `logger.ts` : stdout prioritaire, fichier opt-in via `LOG_FILE`, niveaux configurables
+- [x] Créer `Dockerfile` multi-stage (builder + runtime non-root `eligraph`)
+- [x] Créer `docker-compose.yml` avec bind `127.0.0.1:3000`
+- [x] Créer `.env.example` (template variables d'env)
+- [ ] Valider en local avec Docker Desktop : `curl http://localhost:3000/health`
+- [ ] Acquérir VPS (Contabo ou Hetzner CX22) + domaine
 - [ ] Configurer nginx + Let's Encrypt sur VPS
 - [ ] Créer workflow GitHub Actions pour CI/CD
 - [ ] Valider avec `curl https://mcp.domaine.com/health`
 
-**Fichiers clés à créer** : `src/mcp/src/server.ts`, `src/mcp/Dockerfile`, `docker-compose.yml`
-
-**Point d'attention** : Lokka expose son serveur MCP via une factory. Il faut extraire
-`createLokkaServer()` depuis `index.ts` pour pouvoir l'importer dans `server.ts`.
+**Statut actuel** : code complet et fonctionnel en localhost. Déploiement VPS bloqué sur l'acquisition d'un serveur et d'un domaine.
 
 ---
 
@@ -395,28 +399,34 @@ IdentityRiskEvent.Read.All
 ## Commandes utiles
 
 ```bash
-# Dev local
+# Dev local — mode stdio (Claude Desktop)
 cd src/mcp
 npm install
 npm run build
-node build/server.ts          # démarrer en mode HTTP
-node build/index.js            # démarrer en mode stdio (Claude Desktop)
+node build/main.js
+
+# Dev local — mode HTTP
+cd src/mcp
+npm run build
+node build/server.js
+curl http://localhost:3000/health
 
 # Docker local
 docker build -t eligraph:local ./src/mcp
 docker-compose up -d
 docker logs -f eligraph
+curl http://localhost:3000/health
 
-# Tests MCP
+# Tests MCP (inspector interactif)
 npx @modelcontextprotocol/inspector http://localhost:3000/mcp
 
-# Deploy (via CI/CD)
-git push origin main           # déclenche GitHub Actions → deploy VPS
+# Deploy (via CI/CD — à configurer lors de l'acquisition du VPS)
+git push origin main           # déclenchera GitHub Actions → deploy VPS
 
-# Logs VPS
-ssh lokka@<VPS-IP>
+# Logs VPS (à configurer)
+ssh <user>@<VPS-IP>
 docker logs -f eligraph
-tail -f /home/lokka/eligraph/logs/eligraph.log
+tail -f /home/<user>/eligraph/logs/eligraph.log
 ```
 
 ---
@@ -431,3 +441,5 @@ tail -f /home/lokka/eligraph/logs/eligraph.log
 | 2026-04 | Règles métier externalisées en JSON | Modifiables sans recompilation, versionables séparément |
 | 2026-04 | Winston pour le logging | Mature, multi-transport, format JSON natif, rotation intégrée |
 | 2026-04 | Nom du projet : EliGraph | Court, évoque Graph API, portable (pas lié à un client) |
+| 2026-05 | Logger custom stdout pour Chantier 1 (pas encore winston) | Winston est prévu au Chantier 2 ; pour le Chantier 1 un logger minimal stdout suffit et évite une dépendance prématurée |
+| 2026-05 | GitHub Actions et nginx reportés à l'acquisition du VPS | Pas de domaine ni de serveur cible pour l'instant — le code est prêt, le déploiement est bloquant externe |

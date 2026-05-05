@@ -15,7 +15,7 @@ Il supporte deux modes de déploiement :
 | Microsoft Graph (read + write) | ✅ |
 | Azure Resource Management | ✅ |
 | Mode stdio (Claude Desktop local) | ✅ |
-| Mode HTTP remote (MCP Streamable) | 🚧 Chantier 1 |
+| Mode HTTP remote (MCP Streamable) | ✅ Code prêt — déploiement VPS en attente |
 | Logging structuré JSON (audit trail) | 🚧 Chantier 2 |
 | Règles métier / garde-fous | 🚧 Chantier 3 |
 | Intégration Copilot Studio | 📋 Roadmap |
@@ -79,7 +79,8 @@ USE_CERTIFICATE=true
 | `ACCESS_TOKEN` | Non | Token initial en mode `USE_CLIENT_TOKEN` |
 | `USE_GRAPH_BETA` | Non | `false` pour forcer Graph v1.0 (défaut : beta autorisé) |
 | `PORT` | Non | Port HTTP interne (défaut : 3000) |
-| `LOG_LEVEL` | Non | `debug` / `info` / `warn` / `error` |
+| `LOG_LEVEL` | Non | `debug` / `info` / `warn` / `error` (défaut : `info`) |
+| `LOG_FILE` | Non | Chemin du fichier de log (ex : `/app/logs/eligraph.log`) — stdout toujours actif |
 
 ---
 
@@ -123,11 +124,25 @@ Déclencher un re-login interactif pour ajouter des scopes Graph (mode interacti
 
 ## Développement local
 
+### Mode stdio (Claude Desktop)
+
 ```bash
 cd src/mcp
 npm install
 npm run build
-node build/main.js        # mode stdio
+node build/main.js
+```
+
+### Mode HTTP (localhost)
+
+```bash
+cd src/mcp
+npm run build
+node build/server.js
+# Health check
+curl http://localhost:3000/health
+# Test MCP interactif
+npx @modelcontextprotocol/inspector http://localhost:3000/mcp
 ```
 
 ---
@@ -137,7 +152,11 @@ node build/main.js        # mode stdio
 ```bash
 docker build -t eligraph:local ./src/mcp
 docker-compose up -d
+docker logs -f eligraph
+curl http://localhost:3000/health
 ```
+
+> **Note** : Le déploiement HTTPS public (VPS + nginx + Let's Encrypt) est en attente de l'acquisition d'un serveur et d'un domaine. Le workflow GitHub Actions (CI/CD) sera créé à ce moment-là.
 
 ---
 
