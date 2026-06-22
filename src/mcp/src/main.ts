@@ -8,8 +8,16 @@ import { logger } from "./logger.js";
 import { AuthManager, AuthConfig, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 
-// Set up global fetch for the Microsoft Graph client
-(global as any).fetch = fetch;
+// Set up global fetch for the Microsoft Graph client.
+// Only polyfill when the runtime has no native fetch (Node < 18). On Node >= 18
+// the native (undici) fetch is present and correct; overwriting it with
+// isomorphic-fetch / node-fetch@2 triggers "Premature close" on Graph responses
+// under Node 24 (node-fetch@2's keep-alive socket lifecycle races the
+// gzip-decompress stream). isomorphic-fetch already guards its own polyfill the
+// same way (`if (!global.fetch)`); mirror that here.
+if (!(globalThis as any).fetch) {
+    (global as any).fetch = fetch;
+}
 
 // Create server instance
 const server = new McpServer({
