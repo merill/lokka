@@ -305,3 +305,13 @@ Other available scripts (run from the repository root):
    - Fill in **Tenant ID**, **Client ID**, and **Client secret** (or **Certificate path** + enable **Use certificate authentication**) for app-only authentication.
    - Enable **Use client-provided tokens** if the client will supply access tokens itself.
 4. Enable the extension. Claude Desktop will launch the bundled server directly — no separate Node.js install or `npx` invocation required, since dependencies are packaged inside the `.mcpb` file.
+
+#### Known issue: extension crashes instantly under Claude Desktop
+
+As of Claude Desktop 1.20186.0 on macOS, MCPB extensions and org-managed Connectors fail to
+start: the server process is killed within ~100ms of the `initialize` handshake, before any
+server code can run, regardless of auth mode or configuration. This reproduces with a clean
+install and is not specific to Lokka's code — the same server works correctly when run as a
+plain `mcpServers` entry (see [Manual installation](#manual-installation) above), which spawns
+the server as a normal subprocess using the system's `node` instead of Claude Desktop's bundled
+runtime. Until this is fixed upstream, prefer manual installation over the `.mcpb` extension.
