@@ -8,6 +8,17 @@ import { logger } from "./logger.js";
 import { AuthManager, AuthConfig, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 
+process.on("uncaughtException", (error) => {
+  process.stderr.write(`[uncaughtException] ${error?.stack || error}\n`);
+  logger.error("uncaughtException", error);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  process.stderr.write(`[unhandledRejection] ${(reason as any)?.stack || reason}\n`);
+  logger.error("unhandledRejection", reason as any);
+  process.exit(1);
+});
+
 // Set up global fetch for the Microsoft Graph client
 (global as any).fetch = fetch;
 
