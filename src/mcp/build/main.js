@@ -22,6 +22,103 @@ let graphClient = null;
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
 const defaultGraphApiVersion = getDefaultGraphApiVersion();
 logger.info(`Graph API default version: ${defaultGraphApiVersion} (USE_GRAPH_BETA=${process.env.USE_GRAPH_BETA || 'undefined'})`);
+/**
+ * Validates Azure Resource Manager API paths to prevent SSRF attacks.
+ *
+ * Security checks:
+ * - Rejects paths with host-escape characters (@, //)
+ * - Prevents absolute URL injection
+ * - Ensures path is relative and safe
+ *
+ * Even though we use the URL constructor for safe composition, this validation
+ * provides defense-in-depth by catching malicious patterns early.
+ *
+ * Attack vectors prevented:
+ * - "@attacker.com" - host-escape injection
+ * - "//attacker.com" - protocol-relative URL injection
+ * - "https://attacker.com" - absolute URL injection
+ *
+ * @param path - The API path to validate
+ * @throws Error if the path contains forbidden patterns
+ */
+function validateAzurePath(path) {
+    if (!path) {
+        throw new Error("Path cannot be empty");
+    }
+    // Check for host-escape characters and other SSRF vectors
+    const forbiddenPatterns = [
+        { pattern: /@/, reason: "contains @ (host-escape character)" },
+        { pattern: /\/{2,}/, reason: "contains double slashes (protocol-relative URL)" },
+        { pattern: /^https?:\/\//i, reason: "is an absolute URL" },
+        { pattern: /\\/g, reason: "contains backslashes" },
+    ];
+    for (const { pattern, reason } of forbiddenPatterns) {
+        if (pattern.test(path)) {
+            logger.error(`Invalid Azure path rejected: ${reason}. Path: ${path}`);
+            throw new Error(`Invalid path: ${reason}. Path must be a relative path starting with '/'.`);
+        }
+    }
+    // Ensure path starts with / (relative path)
+    if (!path.startsWith("/")) {
+        logger.error(`Invalid Azure path rejected: does not start with '/'. Path: ${path}`);
+        throw new Error("Invalid path: must start with '/'. Paths must be relative, not absolute URLs.");
+    }
+    // Verify the path doesn't resolve to a different host
+    try {
+        const testUrl = new URL(path, "https://management.azure.com");
+        if (testUrl.hostname !== "management.azure.com") {
+            logger.error(`Invalid Azure path rejected: would redirect to different host. Path: ${path}, Resolved host: ${testUrl.hostname}`);
+            throw new Error(`Invalid path: would resolve to different host (${testUrl.hostname}). Path must target management.azure.com.`);
+        }
+    }
+    catch (e) {
+        if (e.message.includes("would resolve to different host")) {
+            throw e;
+        }
+        logger.error(`Invalid Azure path rejected: cannot parse as URL. Path: ${path}`, e);
+        throw new Error("Invalid path: cannot be parsed as a valid URL component.");
+    }
+}
+/**
+ * Safely constructs an Azure Resource Manager API URL using the URL standard library.
+ *
+ * This prevents SSRF attacks by:
+ * 1. Using the URL constructor to parse and validate the base URL
+ * 2. Using the pathname property to safely set path components
+ * 3. Using searchParams API to safely append query parameters (auto URL-encodes values)
+ * 4. Ensuring the hostname is always management.azure.com
+ *
+ * @param subscriptionId - Optional Azure subscription ID
+ * @param path - The API path (pre-validated by validateAzurePath)
+ * @param apiVersion - Azure API version
+ * @param queryParams - Additional query parameters
+ * @returns Safe URL string
+ */
+function buildAzureUrl(subscriptionId, path, apiVersion, queryParams) {
+    // SECURITY: Create URL using standard URL constructor
+    // This ensures proper URL parsing and composition, preventing host-escape attacks
+    const urlObj = new URL("https://management.azure.com");
+    // SECURITY: Build pathname using property setter, not string concatenation
+    // The URL implementation safely handles special characters in the pathname
+    let pathname = "";
+    if (subscriptionId) {
+        pathname += `/subscriptions/${subscriptionId}`;
+    }
+    pathname += path;
+    // Set the pathname using the URL API
+    // This safely encodes special characters (e.g., @ becomes %40)
+    urlObj.pathname = pathname;
+    // SECURITY: Use searchParams API for query parameters
+    // This automatically URL-encodes all values, preventing injection attacks
+    urlObj.searchParams.set("api-version", apiVersion);
+    if (queryParams) {
+        for (const [key, value] of Object.entries(queryParams)) {
+            urlObj.searchParams.append(key, String(value));
+        }
+    }
+    // Return the safely constructed URL string
+    return urlObj.toString();
+}
 server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management. IMPORTANT: For Graph API GET requests using advanced query parameters ($filter, $count, $search, $orderby), you are ADVISED to set 'consistencyLevel: \"eventual\"'.", {
     apiType: z.enum(["graph", "azure"]).describe("Type of Microsoft API to query. Options: 'graph' for Microsoft Graph (Entra) or 'azure' for Azure Resource Management."),
     path: z.string().describe("The Azure or Graph API URL path to call (e.g. '/users', '/groups', '/subscriptions')"),
@@ -106,34 +203,27 @@ server.tool("Lokka-Microsoft", "A versatile tool to interact with Microsoft APIs
                 default:
                     throw new Error(`Unsupported method: ${method}`);
             }
-        } // --- Azure Resource Management Logic (using direct fetch) ---
+        } // --- Azure Resource Management Logic (using safe URL construction) ---
         else { // apiType === 'azure'
             if (!authManager) {
                 throw new Error("Auth manager not initialized");
             }
             determinedUrl = "https://management.azure.com"; // For error reporting
+            if (!apiVersion) {
+                throw new Error("API version is required for Azure Resource Management queries");
+            }
+            // SECURITY: Validate the path parameter to prevent SSRF attacks
+            // This provides defense-in-depth validation before URL construction
+            validateAzurePath(path);
             // Acquire token for Azure RM
             const azureCredential = authManager.getAzureCredential();
             const tokenResponse = await azureCredential.getToken("https://management.azure.com/.default");
             if (!tokenResponse || !tokenResponse.token) {
                 throw new Error("Failed to acquire Azure access token");
             }
-            // Construct the URL (similar to previous implementation)
-            let url = determinedUrl;
-            if (subscriptionId) {
-                url += `/subscriptions/${subscriptionId}`;
-            }
-            url += path;
-            if (!apiVersion) {
-                throw new Error("API version is required for Azure Resource Management queries");
-            }
-            const urlParams = new URLSearchParams({ 'api-version': apiVersion });
-            if (queryParams) {
-                for (const [key, value] of Object.entries(queryParams)) {
-                    urlParams.append(String(key), String(value));
-                }
-            }
-            url += `?${urlParams.toString()}`;
+            // SECURITY: Use URL constructor to safely build the Azure API URL
+            // This prevents SSRF attacks by properly parsing and encoding all URL components
+            const url = buildAzureUrl(subscriptionId, path, apiVersion, queryParams);
             // Prepare request options
             const headers = {
                 'Authorization': `Bearer ${tokenResponse.token}`,
@@ -317,7 +407,7 @@ server.tool("get-auth-status", "Check the current authentication status and mode
     }
 });
 // Add tool for requesting additional Graph permissions
-server.tool("add-graph-permission", "Request additional Microsoft Graph permission scopes by performing a fresh interactive sign-in. This tool only works in interactive authentication mode and should be used if any Graph API call returns permissions related errors.", {
+server.tool("add-graph-permission", "Request additional Microsoft Graph permission scopes by performing a fresh interactive sign-in. This tool only works in interactive authentication mode and should be used if any Graph API call returns a permission denied error.", {
     scopes: z.array(z.string()).describe("Array of Microsoft Graph permission scopes to request (e.g., ['User.Read', 'Mail.ReadWrite', 'Directory.Read.All'])")
 }, async ({ scopes }) => {
     try {
