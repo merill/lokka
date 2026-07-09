@@ -14,10 +14,10 @@ import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaul
 // Create server instance
 const server = new McpServer({
   name: "Lokka-Microsoft",
-  version: "0.2.0", // Updated version for token-based auth support
+  version: "2.1.3",
 });
 
-logger.info("Starting Lokka Multi-Microsoft API MCP Server (v0.2.0 - Token-Based Auth Support)");
+logger.info("Starting Lokka Multi-Microsoft API MCP Server (v2.1.3)");
 
 // Initialize authentication and clients
 let authManager: AuthManager | null = null;
