@@ -22,7 +22,7 @@ function copy(from, to) {
 }
 
 rmSync(exportDir, { recursive: true, force: true });
-if (existsSync(outFile)) rmSync(outFile);
+if (existsSync(outFile)) rmSync(outFile, { force: true });
 
 run('npm run build --prefix src/mcp');
 
