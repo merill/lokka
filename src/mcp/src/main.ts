@@ -10,7 +10,13 @@ import { AuthManager, AuthConfig, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 
 const require = createRequire(import.meta.url);
-const { version: serverVersion } = require("../package.json") as { version: string };
+let serverVersion = "unknown";
+try {
+  const { version } = require("../package.json") as { version: string };
+  serverVersion = version;
+} catch {
+  // package.json not resolvable in this runtime layout; diagnostics will report "unknown"
+}
 
 // Set up global fetch for the Microsoft Graph client
 (global as any).fetch = fetch;

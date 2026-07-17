@@ -1,10 +1,16 @@
 import { appendFileSync } from "fs";
 import { join } from "path";
+import { tmpdir } from "os";
 
-const LOG_FILE = join(
-  import.meta.dirname,
-  "mcp-server.log",
-);
+function resolveLogFile(): string {
+  try {
+    return join(import.meta.dirname, "mcp-server.log");
+  } catch {
+    return join(tmpdir(), "lokka-mcp-server.log");
+  }
+}
+
+const LOG_FILE = resolveLogFile();
 
 function formatMessage(
   level: string,
@@ -12,9 +18,14 @@ function formatMessage(
   data?: unknown,
 ): string {
   const timestamp = new Date().toISOString();
-  const dataStr = data
-    ? `\n${JSON.stringify(data, null, 2)}`
-    : "";
+  let dataStr = "";
+  if (data) {
+    try {
+      dataStr = `\n${JSON.stringify(data, null, 2)}`;
+    } catch {
+      dataStr = "\n[unserializable data]";
+    }
+  }
   return `[${timestamp}] [${level}] ${message}${dataStr}\n`;
 }
 
@@ -25,7 +36,12 @@ export const logger = {
       message,
       data,
     );
-    appendFileSync(LOG_FILE, logMessage);
+    process.stderr.write(logMessage);
+    try {
+      appendFileSync(LOG_FILE, logMessage);
+    } catch {
+      // Logging must never crash the server (e.g. read-only install directory).
+    }
   },
 
   error(message: string, error?: unknown) {
@@ -34,7 +50,12 @@ export const logger = {
       message,
       error,
     );
-    appendFileSync(LOG_FILE, logMessage);
+    process.stderr.write(logMessage);
+    try {
+      appendFileSync(LOG_FILE, logMessage);
+    } catch {
+      // Logging must never crash the server (e.g. read-only install directory).
+    }
   },
 
   // debug(message: string, data?: unknown) {
