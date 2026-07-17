@@ -1,0 +1,8 @@
+src/mcp/src
+scripts
+export
+dist
+*.mcpb
+*.tgz
+.git
+.gitignore

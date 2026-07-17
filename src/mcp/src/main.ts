@@ -69,7 +69,7 @@ function validateAzurePath(path: string): void {
     { pattern: /@/, reason: "contains @ (host-escape character)" },
     { pattern: /\/{2,}/, reason: "contains double slashes (protocol-relative URL)" },
     { pattern: /^https?:\/\//i, reason: "is an absolute URL" },
-    { pattern: /\\/g, reason: "contains backslashes" },
+    { pattern: /\\/, reason: "contains backslashes" },
   ];
 
   for (const { pattern, reason } of forbiddenPatterns) {

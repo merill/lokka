@@ -18,9 +18,14 @@ function formatMessage(
   data?: unknown,
 ): string {
   const timestamp = new Date().toISOString();
-  const dataStr = data
-    ? `\n${JSON.stringify(data, null, 2)}`
-    : "";
+  let dataStr = "";
+  if (data) {
+    try {
+      dataStr = `\n${JSON.stringify(data, null, 2)}`;
+    } catch {
+      dataStr = "\n[unserializable data]";
+    }
+  }
   return `[${timestamp}] [${level}] ${message}${dataStr}\n`;
 }
 
