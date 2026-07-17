@@ -8,12 +8,10 @@ import { logger } from "./logger.js";
 import { AuthManager, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 process.on("uncaughtException", (error) => {
-    process.stderr.write(`[uncaughtException] ${error?.stack || error}\n`);
     logger.error("uncaughtException", error);
     process.exit(1);
 });
 process.on("unhandledRejection", (reason) => {
-    process.stderr.write(`[unhandledRejection] ${reason?.stack || reason}\n`);
     logger.error("unhandledRejection", reason);
     process.exit(1);
 });

@@ -13,7 +13,7 @@ const LOG_FILE = resolveLogFile();
 function formatMessage(level, message, data) {
     const timestamp = new Date().toISOString();
     let dataStr = "";
-    if (data) {
+    if (data !== undefined) {
         try {
             dataStr = `\n${JSON.stringify(data, null, 2)}`;
         }

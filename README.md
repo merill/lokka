@@ -272,7 +272,7 @@ Make sure to replace `<tenant-id>`, `<client-id>`, and `<client-secret>` with th
 
 ### Install as a Desktop Extension (.mcpb)
 
-Lokka can also be packaged as an [MCP Bundle](https://github.com/anthropics/mcpb) (`.mcpb`) — a 
+Lokka can also be packaged as an [MCP Bundle](https://github.com/modelcontextprotocol/mcpb) (`.mcpb`) — a 
 single file that Claude Desktop can install without any manual JSON editing or `npx` setup.
 This also allows you to deploy Lokka in Claude tenants where you have an Enterprise or Team
 plan.
