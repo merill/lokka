@@ -27,6 +27,7 @@ logger.info(`Starting Lokka Multi-Microsoft API MCP Server (v${serverVersion})`)
 let authManager: AuthManager | null = null;
 let graphClient: Client | null = null;
 let configError: string | null = null;
+let selectedAuthMode: AuthMode | null = null;
 
 // Check USE_GRAPH_BETA environment variable
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
@@ -469,9 +470,9 @@ server.tool(
   {},
   async () => {
     try {
-      const authMode = authManager?.getAuthMode() || "Not initialized";
-      const isReady = authManager !== null;
-      const tokenStatus = authManager ? await authManager.getTokenStatus() : { isExpired: false };
+      const authMode = selectedAuthMode ?? "Not initialized";
+      const isReady = configError === null && graphClient !== null;
+      const tokenStatus = authManager ? await authManager.getTokenStatus() : { isExpired: true };
       
       return {
         content: [{
@@ -508,8 +509,8 @@ server.tool(
         type: "text" as const,
         text: JSON.stringify({
           version: serverVersion,
-          authMode: authManager?.getAuthMode() ?? "Not initialized",
-          isReady: authManager !== null,
+          authMode: selectedAuthMode ?? "Not initialized",
+          isReady: configError === null && graphClient !== null,
           configError: configError ?? undefined,
           timestamp: new Date().toISOString()
         }, null, 2)
@@ -740,6 +741,7 @@ async function main() {
       }
     }
 
+    selectedAuthMode = authMode;
     logger.info(`Starting with authentication mode: ${authMode}`);
 
     let tenantId: string | undefined;
