@@ -791,12 +791,12 @@ async function main() {
     } else {
       logger.info("Started in client token mode. Use set-access-token tool to provide authentication token.");
     }
-  } catch (error: any) {
-    configError = error.message;
+  } catch (error: unknown) {
+    configError = error instanceof Error ? error.message : String(error);
     authManager = null;
     graphClient = null;
-    logger.error(`Configuration error: ${configError}`);
-    logger.error("Server will start but API tools will be unavailable until the configuration is fixed and the server is restarted.");
+    logger.error(`Auth initialization error: ${configError}`);
+    logger.error("Server will start but API tools will be unavailable until the issue is resolved and the server is restarted.");
   }
 
   const transport = new StdioServerTransport();
