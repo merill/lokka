@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from "module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -8,16 +9,19 @@ import { logger } from "./logger.js";
 import { AuthManager, AuthConfig, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 
+const require = createRequire(import.meta.url);
+const { version: serverVersion } = require("../package.json") as { version: string };
+
 // Set up global fetch for the Microsoft Graph client
 (global as any).fetch = fetch;
 
 // Create server instance
 const server = new McpServer({
   name: "Lokka-Microsoft",
-  version: "0.2.0", // Updated version for token-based auth support
+  version: serverVersion,
 });
 
-logger.info("Starting Lokka Multi-Microsoft API MCP Server (v0.2.0 - Token-Based Auth Support)");
+logger.info(`Starting Lokka Multi-Microsoft API MCP Server (v${serverVersion})`);
 
 // Initialize authentication and clients
 let authManager: AuthManager | null = null;
@@ -491,6 +495,26 @@ server.tool(
         isError: true
       };
     }
+  }
+);
+
+server.tool(
+  "info",
+  "Returns diagnostic information about this MCP server: version, active authentication mode, and any configuration errors detected at startup.",
+  {},
+  async () => {
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          version: serverVersion,
+          authMode: authManager?.getAuthMode() ?? "Not initialized",
+          isReady: authManager !== null,
+          configError: configError ?? undefined,
+          timestamp: new Date().toISOString()
+        }, null, 2)
+      }],
+    };
   }
 );
 
