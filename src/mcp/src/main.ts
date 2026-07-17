@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createRequire } from "module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -8,20 +9,31 @@ import { logger } from "./logger.js";
 import { AuthManager, AuthConfig, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 
+const require = createRequire(import.meta.url);
+let serverVersion = "unknown";
+try {
+  const { version } = require("../package.json") as { version: string };
+  serverVersion = version;
+} catch {
+  // package.json not resolvable in this runtime layout; diagnostics will report "unknown"
+}
+
 // Set up global fetch for the Microsoft Graph client
 (global as any).fetch = fetch;
 
 // Create server instance
 const server = new McpServer({
   name: "Lokka-Microsoft",
-  version: "0.2.0", // Updated version for token-based auth support
+  version: serverVersion,
 });
 
-logger.info("Starting Lokka Multi-Microsoft API MCP Server (v0.2.0 - Token-Based Auth Support)");
+logger.info(`Starting Lokka Multi-Microsoft API MCP Server (v${serverVersion})`);
 
 // Initialize authentication and clients
 let authManager: AuthManager | null = null;
 let graphClient: Client | null = null;
+let configError: string | null = null;
+let selectedAuthMode: AuthMode | null = null;
 
 // Check USE_GRAPH_BETA environment variable
 const useGraphBeta = process.env.USE_GRAPH_BETA !== 'false'; // Default to true unless explicitly set to 'false'
@@ -191,7 +203,13 @@ server.tool(
       // --- Microsoft Graph Logic ---
       if (apiType === 'graph') {
         if (!graphClient) {
-          throw new Error("Graph client not initialized");
+          if (configError) {
+            throw new Error(`Graph client not initialized due to configuration error: ${configError}`);
+          } else if (selectedAuthMode === AuthMode.ClientProvidedToken) {
+            throw new Error("Graph client not initialized: no access token has been provided. Use the set-access-token tool to authenticate.");
+          } else {
+            throw new Error("Graph client not initialized");
+          }
         }
         determinedUrl = `https://graph.microsoft.com/${effectiveGraphApiVersion}`; // For error reporting
 
@@ -265,7 +283,9 @@ server.tool(
       }      // --- Azure Resource Management Logic (using safe URL construction) ---
       else { // apiType === 'azure'
         if (!authManager) {
-          throw new Error("Auth manager not initialized");
+          throw new Error(configError
+            ? `Auth manager not initialized due to configuration error: ${configError}`
+            : "Auth manager not initialized");
         }
         determinedUrl = "https://management.azure.com"; // For error reporting
 
@@ -460,16 +480,17 @@ server.tool(
   {},
   async () => {
     try {
-      const authMode = authManager?.getAuthMode() || "Not initialized";
-      const isReady = authManager !== null;
-      const tokenStatus = authManager ? await authManager.getTokenStatus() : { isExpired: false };
+      const authMode = selectedAuthMode ?? "Not initialized";
+      const isReady = configError === null && graphClient !== null;
+      const tokenStatus = authManager ? await authManager.getTokenStatus() : { isExpired: true };
       
       return {
-        content: [{ 
-          type: "text" as const, 
+        content: [{
+          type: "text" as const,
           text: JSON.stringify({
             authMode,
             isReady,
+            configError: configError ?? undefined,
             supportsTokenUpdates: authMode === AuthMode.ClientProvidedToken,
             tokenStatus: tokenStatus,
             timestamp: new Date().toISOString()
@@ -478,13 +499,33 @@ server.tool(
       };
     } catch (error: any) {
       return {
-        content: [{ 
-          type: "text" as const, 
-          text: `Error checking auth status: ${error.message}` 
+        content: [{
+          type: "text" as const,
+          text: `Error checking auth status: ${error.message}`
         }],
         isError: true
       };
     }
+  }
+);
+
+server.tool(
+  "info",
+  "Returns diagnostic information about this MCP server: version, active authentication mode, and any configuration errors detected at startup.",
+  {},
+  async () => {
+    return {
+      content: [{
+        type: "text" as const,
+        text: JSON.stringify({
+          version: serverVersion,
+          authMode: selectedAuthMode ?? "Not initialized",
+          isReady: configError === null && graphClient !== null,
+          configError: configError ?? undefined,
+          timestamp: new Date().toISOString()
+        }, null, 2)
+      }],
+    };
   }
 );
 
@@ -578,9 +619,8 @@ server.tool(
       const scopeString = scopes.map(scope => `https://graph.microsoft.com/${scope}`).join(' ');
       logger.info(`Requesting fresh token with scopes: ${scopeString}`);
       
-      console.log(`\n🔐 Requesting Additional Graph Permissions:`);
-      console.log(`Scopes: ${scopes.join(', ')}`);
-      console.log(`You will be prompted to sign in to grant these permissions.\n`);
+      logger.info(`Requesting additional Graph permissions for scopes: ${scopes.join(', ')}`);
+      logger.info("You will be prompted to sign in to grant these permissions.");
 
       let newCredential;
       let tokenResponse;
@@ -603,10 +643,7 @@ server.tool(
           tenantId: tenantId,
           clientId: clientId,
           userPromptCallback: (info) => {
-            console.log(`\n🔐 Additional Permissions Required:`);
-            console.log(`Please visit: ${info.verificationUri}`);
-            console.log(`And enter code: ${info.userCode}`);
-            console.log(`Requested scopes: ${scopes.join(', ')}\n`);
+            logger.info(`Device code authentication required. Visit: ${info.verificationUri} and enter code: ${info.userCode}. Requested scopes: ${scopes.join(', ')}`);
             return Promise.resolve();
           },
         });
@@ -679,108 +716,99 @@ server.tool(
 
 // Start the server with stdio transport
 async function main() {
-  // Determine authentication mode based on environment variables
   const useCertificate = process.env.USE_CERTIFICATE === 'true';
   const useInteractive = process.env.USE_INTERACTIVE === 'true';
   const useClientToken = process.env.USE_CLIENT_TOKEN === 'true';
   const initialAccessToken = process.env.ACCESS_TOKEN;
-  
-  let authMode: AuthMode;
-  
-  // Ensure only one authentication mode is enabled at a time
-  const enabledModes = [
-    useClientToken,
-    useInteractive,
-    useCertificate
-  ].filter(Boolean);
 
-  if (enabledModes.length > 1) {
-    throw new Error(
-      "Multiple authentication modes enabled. Please enable only one of USE_CLIENT_TOKEN, USE_INTERACTIVE, or USE_CERTIFICATE."
-    );
-  }
+  const enabledModes = [useClientToken, useInteractive, useCertificate].filter(Boolean);
 
-  if (useClientToken) {
-    authMode = AuthMode.ClientProvidedToken;
-    if (!initialAccessToken) {
-      logger.info("Client token mode enabled but no initial token provided. Token must be set via set-access-token tool.");
+  try {
+    if (enabledModes.length > 1) {
+      throw new Error(
+        "Multiple authentication modes enabled. Please enable only one of USE_CLIENT_TOKEN, USE_INTERACTIVE, or USE_CERTIFICATE."
+      );
     }
-  } else if (useInteractive) {
-    authMode = AuthMode.Interactive;
-  } else if (useCertificate) {
-    authMode = AuthMode.Certificate;
-  } else {
-    // Check if we have client credentials environment variables
-    const hasClientCredentials = process.env.TENANT_ID && process.env.CLIENT_ID && process.env.CLIENT_SECRET;
-    
-    if (hasClientCredentials) {
-      authMode = AuthMode.ClientCredentials;
-    } else {
-      // Default to interactive mode for better user experience
+
+    let authMode: AuthMode;
+
+    if (useClientToken) {
+      authMode = AuthMode.ClientProvidedToken;
+      if (!initialAccessToken) {
+        logger.info("Client token mode enabled but no initial token provided. Token must be set via set-access-token tool.");
+      }
+    } else if (useInteractive) {
       authMode = AuthMode.Interactive;
-      logger.info("No authentication mode specified and no client credentials found. Defaulting to interactive mode.");
+    } else if (useCertificate) {
+      authMode = AuthMode.Certificate;
+    } else {
+      const hasClientCredentials = process.env.TENANT_ID && process.env.CLIENT_ID && process.env.CLIENT_SECRET;
+      if (hasClientCredentials) {
+        authMode = AuthMode.ClientCredentials;
+      } else {
+        authMode = AuthMode.Interactive;
+        logger.info("No authentication mode specified and no client credentials found. Defaulting to interactive mode.");
+      }
     }
-  }
 
-  logger.info(`Starting with authentication mode: ${authMode}`);
+    selectedAuthMode = authMode;
+    logger.info(`Starting with authentication mode: ${authMode}`);
 
-  // Get tenant ID and client ID with defaults only for interactive mode
-  let tenantId: string | undefined;
-  let clientId: string | undefined;
-  
-  if (authMode === AuthMode.Interactive) {
-    // Interactive mode can use defaults
-    tenantId = process.env.TENANT_ID || LokkaDefaultTenantId;
-    clientId = process.env.CLIENT_ID || LokkaClientId;
-    logger.info(`Interactive mode using tenant ID: ${tenantId}, client ID: ${clientId}`);
-  } else {
-    // All other modes require explicit values from environment variables
-    tenantId = process.env.TENANT_ID;
-    clientId = process.env.CLIENT_ID;
-  }
+    let tenantId: string | undefined;
+    let clientId: string | undefined;
 
-  const clientSecret = process.env.CLIENT_SECRET;
-  const certificatePath = process.env.CERTIFICATE_PATH;
-  const certificatePassword = process.env.CERTIFICATE_PASSWORD; // optional
-
-  // Validate required configuration
-  if (authMode === AuthMode.ClientCredentials) {
-    if (!tenantId || !clientId || !clientSecret) {
-      throw new Error("Client credentials mode requires explicit TENANT_ID, CLIENT_ID, and CLIENT_SECRET environment variables");
+    if (authMode === AuthMode.Interactive) {
+      tenantId = process.env.TENANT_ID || LokkaDefaultTenantId;
+      clientId = process.env.CLIENT_ID || LokkaClientId;
+      logger.info(`Interactive mode using tenant ID: ${tenantId}, client ID: ${clientId}`);
+    } else {
+      tenantId = process.env.TENANT_ID;
+      clientId = process.env.CLIENT_ID;
     }
-  } else if (authMode === AuthMode.Certificate) {
-    if (!tenantId || !clientId || !certificatePath) {
-      throw new Error("Certificate mode requires explicit TENANT_ID, CLIENT_ID, and CERTIFICATE_PATH environment variables");
+
+    const clientSecret = process.env.CLIENT_SECRET;
+    const certificatePath = process.env.CERTIFICATE_PATH;
+    const certificatePassword = process.env.CERTIFICATE_PASSWORD;
+
+    if (authMode === AuthMode.ClientCredentials) {
+      if (!tenantId || !clientId || !clientSecret) {
+        throw new Error("Client credentials mode requires TENANT_ID, CLIENT_ID, and CLIENT_SECRET environment variables");
+      }
+    } else if (authMode === AuthMode.Certificate) {
+      if (!tenantId || !clientId || !certificatePath) {
+        throw new Error("Certificate mode requires TENANT_ID, CLIENT_ID, and CERTIFICATE_PATH environment variables");
+      }
     }
-  }
-  // Note: Client token mode can start without a token and receive it later
 
-  const authConfig: AuthConfig = {
-    mode: authMode,
-    tenantId,
-    clientId,
-    clientSecret,
-    accessToken: initialAccessToken,
-    redirectUri: process.env.REDIRECT_URI,
-    certificatePath,
-    certificatePassword
-  };
+    const authConfig: AuthConfig = {
+      mode: authMode,
+      tenantId,
+      clientId,
+      clientSecret,
+      accessToken: initialAccessToken,
+      redirectUri: process.env.REDIRECT_URI,
+      certificatePath,
+      certificatePassword
+    };
 
-  authManager = new AuthManager(authConfig);
-  
-  // Only initialize if we have required config (for client token mode, we can start without a token)
-  if (authMode !== AuthMode.ClientProvidedToken || initialAccessToken) {
+    authManager = new AuthManager(authConfig);
+
+    // Always initialize so the credential exists (required for set-access-token in client token mode).
     await authManager.initialize();
-    
-    // Initialize Graph Client
-    const authProvider = authManager.getGraphAuthProvider();
-    graphClient = Client.initWithMiddleware({
-      authProvider: authProvider,
-    });
-    
-    logger.info(`Authentication initialized successfully using ${authMode} mode`);
-  } else {
-    logger.info("Started in client token mode. Use set-access-token tool to provide authentication token.");
+
+    if (authMode === AuthMode.ClientProvidedToken && !initialAccessToken) {
+      logger.info("Started in client token mode. Use set-access-token tool to provide authentication token.");
+    } else {
+      const authProvider = authManager.getGraphAuthProvider();
+      graphClient = Client.initWithMiddleware({ authProvider });
+      logger.info(`Authentication initialized successfully using ${authMode} mode`);
+    }
+  } catch (error: unknown) {
+    configError = error instanceof Error ? error.message : String(error);
+    authManager = null;
+    graphClient = null;
+    logger.error(`Auth initialization error: ${configError}`);
+    logger.error("Server will start but API tools will be unavailable until the issue is resolved and the server is restarted.");
   }
 
   const transport = new StdioServerTransport();
@@ -788,7 +816,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  logger.error("Fatal error in main()", error);
+  console.error("Fatal error starting MCP transport:", error);
+  logger.error("Fatal error starting MCP transport", error);
   process.exit(1);
 });
