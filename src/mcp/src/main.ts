@@ -801,7 +801,6 @@ async function main() {
     } else {
       const authProvider = authManager.getGraphAuthProvider();
       graphClient = Client.initWithMiddleware({ authProvider });
-
       logger.info(`Authentication initialized successfully using ${authMode} mode`);
     }
   } catch (error: unknown) {

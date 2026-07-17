@@ -671,14 +671,15 @@ async function main() {
             certificatePassword
         };
         authManager = new AuthManager(authConfig);
-        if (authMode !== AuthMode.ClientProvidedToken || initialAccessToken) {
-            await authManager.initialize();
+        // Always initialize so the credential exists (required for set-access-token in client token mode).
+        await authManager.initialize();
+        if (authMode === AuthMode.ClientProvidedToken && !initialAccessToken) {
+            logger.info("Started in client token mode. Use set-access-token tool to provide authentication token.");
+        }
+        else {
             const authProvider = authManager.getGraphAuthProvider();
             graphClient = Client.initWithMiddleware({ authProvider });
             logger.info(`Authentication initialized successfully using ${authMode} mode`);
-        }
-        else {
-            logger.info("Started in client token mode. Use set-access-token tool to provide authentication token.");
         }
     }
     catch (error) {
