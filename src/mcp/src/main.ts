@@ -804,6 +804,7 @@ async function main() {
 }
 
 main().catch((error) => {
+  console.error("Fatal error starting MCP transport:", error);
   logger.error("Fatal error starting MCP transport", error);
   process.exit(1);
 });
