@@ -180,9 +180,7 @@ export class AuthManager {
             tenantId: tenantId,
             clientId: clientId,
             userPromptCallback: (info: DeviceCodeInfo) => {
-              console.log(`\n🔐 Authentication Required:`);
-              console.log(`Please visit: ${info.verificationUri}`);
-              console.log(`And enter code: ${info.userCode}\n`);
+              logger.info(`Device code authentication required. Visit: ${info.verificationUri} and enter code: ${info.userCode}`);
               return Promise.resolve();
             },
           });

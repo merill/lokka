@@ -584,9 +584,8 @@ server.tool(
       const scopeString = scopes.map(scope => `https://graph.microsoft.com/${scope}`).join(' ');
       logger.info(`Requesting fresh token with scopes: ${scopeString}`);
       
-      console.log(`\n🔐 Requesting Additional Graph Permissions:`);
-      console.log(`Scopes: ${scopes.join(', ')}`);
-      console.log(`You will be prompted to sign in to grant these permissions.\n`);
+      logger.info(`Requesting additional Graph permissions for scopes: ${scopes.join(', ')}`);
+      logger.info("You will be prompted to sign in to grant these permissions.");
 
       let newCredential;
       let tokenResponse;
@@ -609,10 +608,7 @@ server.tool(
           tenantId: tenantId,
           clientId: clientId,
           userPromptCallback: (info) => {
-            console.log(`\n🔐 Additional Permissions Required:`);
-            console.log(`Please visit: ${info.verificationUri}`);
-            console.log(`And enter code: ${info.userCode}`);
-            console.log(`Requested scopes: ${scopes.join(', ')}\n`);
+            logger.info(`Device code authentication required. Visit: ${info.verificationUri} and enter code: ${info.userCode}. Requested scopes: ${scopes.join(', ')}`);
             return Promise.resolve();
           },
         });
