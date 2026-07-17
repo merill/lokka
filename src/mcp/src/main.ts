@@ -203,9 +203,13 @@ server.tool(
       // --- Microsoft Graph Logic ---
       if (apiType === 'graph') {
         if (!graphClient) {
-          throw new Error(configError
-            ? `Graph client not initialized due to configuration error: ${configError}`
-            : "Graph client not initialized");
+          if (configError) {
+            throw new Error(`Graph client not initialized due to configuration error: ${configError}`);
+          } else if (selectedAuthMode === AuthMode.ClientProvidedToken) {
+            throw new Error("Graph client not initialized: no access token has been provided. Use the set-access-token tool to authenticate.");
+          } else {
+            throw new Error("Graph client not initialized");
+          }
         }
         determinedUrl = `https://graph.microsoft.com/${effectiveGraphApiVersion}`; // For error reporting
 
@@ -486,7 +490,7 @@ server.tool(
           text: JSON.stringify({
             authMode,
             isReady,
-            configError: configError || undefined,
+            configError: configError ?? undefined,
             supportsTokenUpdates: authMode === AuthMode.ClientProvidedToken,
             tokenStatus: tokenStatus,
             timestamp: new Date().toISOString()
