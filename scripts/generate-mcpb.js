@@ -35,4 +35,4 @@ copy('src/mcp/package-lock.json', 'export/src/mcp/package-lock.json');
 run('npm ci --prefix export/src/mcp --omit=dev');
 
 mkdirSync(distDir, { recursive: true });
-run('npx @anthropic-ai/mcpb pack export dist/lokka.mcpb');
+run('npx -y @anthropic-ai/mcpb pack export dist/lokka.mcpb');

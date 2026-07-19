@@ -15,7 +15,10 @@ function formatMessage(level, message, data) {
     let dataStr = "";
     if (data !== undefined) {
         try {
-            dataStr = `\n${JSON.stringify(data, null, 2)}`;
+            const serializable = data instanceof Error
+                ? { name: data.name, message: data.message, stack: data.stack }
+                : data;
+            dataStr = `\n${JSON.stringify(serializable, null, 2)}`;
         }
         catch {
             dataStr = "\n[unserializable data]";

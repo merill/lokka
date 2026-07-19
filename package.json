@@ -6,6 +6,6 @@
   "scripts": {
     "build": "npm run build --prefix src/mcp",
     "pack": "node scripts/generate-mcpb.js",
-    "validate": "npx @anthropic-ai/mcpb validate manifest.json"
+    "validate": "npx -y @anthropic-ai/mcpb validate manifest.json"
   }
 }
