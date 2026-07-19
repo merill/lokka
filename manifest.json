@@ -1,0 +1,126 @@
+{
+  "manifest_version": "0.3",
+  "name": "lokka",
+  "display_name": "Lokka - Microsoft Graph & Azure",
+  "version": "2.1.3",
+  "description": "Interact with Microsoft Graph (Entra) and Azure Resource Management APIs using natural language.",
+  "long_description": "Lokka lets you use natural language to accomplish things in your Azure and Microsoft 365 tenant through the Microsoft Graph and Azure Resource Management APIs. Supports interactive sign-in, app-only authentication (client secret or certificate), and client-provided access tokens.",
+  "author": {
+    "name": "Merill Fernando",
+    "url": "https://lokka.dev"
+  },
+  "license": "MIT",
+  "homepage": "https://lokka.dev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/merill/lokka.git"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "src/mcp/build/main.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/src/mcp/build/main.js"
+      ],
+      "env": {
+        "TENANT_ID": "${user_config.tenant_id}",
+        "CLIENT_ID": "${user_config.client_id}",
+        "CLIENT_SECRET": "${user_config.client_secret}",
+        "CERTIFICATE_PATH": "${user_config.certificate_path}",
+        "CERTIFICATE_PASSWORD": "${user_config.certificate_password}",
+        "USE_CERTIFICATE": "${user_config.use_certificate}",
+        "USE_INTERACTIVE": "${user_config.use_interactive}",
+        "USE_CLIENT_TOKEN": "${user_config.use_client_token}",
+        "USE_GRAPH_BETA": "${user_config.use_graph_beta}",
+        "REDIRECT_URI": "${user_config.redirect_uri}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "Lokka-Microsoft",
+      "description": "A versatile tool to interact with Microsoft APIs including Microsoft Graph (Entra) and Azure Resource Management."
+    },
+    {
+      "name": "set-access-token",
+      "description": "Set or update the access token for Microsoft Graph authentication when using client-provided token mode."
+    },
+    {
+      "name": "get-auth-status",
+      "description": "Check the current authentication status and mode of the MCP Server."
+    },
+    {
+      "name": "add-graph-permission",
+      "description": "Request additional Microsoft Graph permission scopes by performing a fresh interactive sign-in."
+    }
+  ],
+  "user_config": {
+    "tenant_id": {
+      "type": "string",
+      "title": "Tenant ID",
+      "description": "Microsoft Entra tenant ID. Leave blank to use interactive sign-in against the 'common' endpoint.",
+      "required": false
+    },
+    "client_id": {
+      "type": "string",
+      "title": "Client ID",
+      "description": "Microsoft Entra app registration (client) ID. Leave blank to use the built-in Lokka app for interactive sign-in.",
+      "required": false
+    },
+    "client_secret": {
+      "type": "string",
+      "title": "Client secret",
+      "description": "Client secret for app-only authentication. Required together with Tenant ID and Client ID for client credentials auth.",
+      "required": false,
+      "sensitive": true
+    },
+    "certificate_path": {
+      "type": "file",
+      "title": "Certificate path",
+      "description": "Path to a PEM-encoded certificate for app-only certificate authentication.",
+      "required": false
+    },
+    "certificate_password": {
+      "type": "string",
+      "title": "Certificate password",
+      "description": "Password for the certificate, if any.",
+      "required": false,
+      "sensitive": true
+    },
+    "use_certificate": {
+      "type": "boolean",
+      "title": "Use certificate authentication",
+      "description": "Enable app-only authentication using the certificate configured above.",
+      "required": false,
+      "default": false
+    },
+    "use_interactive": {
+      "type": "boolean",
+      "title": "Force interactive sign-in",
+      "description": "Force interactive sign-in even if app-only credentials are configured.",
+      "required": false,
+      "default": false
+    },
+    "use_client_token": {
+      "type": "boolean",
+      "title": "Use client-provided tokens",
+      "description": "Start the server expecting the MCP client to supply access tokens via the set-access-token tool.",
+      "required": false,
+      "default": false
+    },
+    "use_graph_beta": {
+      "type": "boolean",
+      "title": "Use Microsoft Graph beta endpoint",
+      "description": "Use the Microsoft Graph beta API version by default instead of v1.0.",
+      "required": false,
+      "default": true
+    },
+    "redirect_uri": {
+      "type": "string",
+      "title": "Redirect URI",
+      "description": "Redirect URI used for interactive sign-in. Defaults to http://localhost:3000.",
+      "required": false
+    }
+  }
+}

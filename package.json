@@ -1,0 +1,11 @@
+{
+  "name": "lokka-mcpb",
+  "version": "2.1.3",
+  "private": true,
+  "description": "Build scripts for packaging Lokka as an MCP Bundle (.mcpb)",
+  "scripts": {
+    "build": "npm run build --prefix src/mcp",
+    "pack": "node scripts/generate-mcpb.js",
+    "validate": "npx -y @anthropic-ai/mcpb validate manifest.json"
+  }
+}

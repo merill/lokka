@@ -224,13 +224,20 @@ The configuration of the server is done using environment variables. The followi
 
 - Interactive and Token-based Authentication (v0.2.0) - [@darrenjrobinson](https://github.com/darrenjrobinson)
 - Certificate Authentication (v0.2.1) - [@nitzpo](https://github.com/nitzpo)
+- .mcpb support (v2.1.3) - [@probichaux](https://github.com/probichaux)
 
 ## Installation
 
-To use this server with the Claude Desktop app, add the following configuration to the "mcpServers" section of your
-`claude_desktop_config.json`:
+To use this server with the Claude Desktop app, you can either install it directly into 
+Claude as an extension or add it manually to the "mcpServers" section of your
+`claude_desktop_config.json`.
 
-### Interactive Authentication
+### Manual installation
+
+Open `claude_desktop_config.json` in your favorite text editor and add the appropriate 
+section, depending on which authentication type you want to use.
+
+#### Interactive Authentication
 
 ```json
 {
@@ -243,7 +250,7 @@ To use this server with the Claude Desktop app, add the following configuration 
 }
 ```
 
-### Client Credentials Authentication
+#### Client Credentials Authentication
 
 ```json
 {
@@ -262,3 +269,49 @@ To use this server with the Claude Desktop app, add the following configuration 
 ```
 
 Make sure to replace `<tenant-id>`, `<client-id>`, and `<client-secret>` with the actual values from your Microsoft Entra application. (See [Install Guide](https://lokka.dev/docs/install) for more details on how to create an Entra app and configure the agent.)
+
+### Install as a Desktop Extension (.mcpb)
+
+Lokka can also be packaged as an [MCP Bundle](https://github.com/modelcontextprotocol/mcpb) (`.mcpb`) — a 
+single file that Claude Desktop can install without any manual JSON editing or `npx` setup.
+This also allows you to deploy Lokka in Claude tenants where you have an Enterprise or Team
+plan.
+
+#### Building the bundle
+
+From the root of the repository:
+
+```bash
+npm install --prefix src/mcp
+npm run pack
+```
+
+This compiles the server and produces `dist/lokka.mcpb`.
+
+Other available scripts (run from the repository root):
+
+| Script | Description |
+|--------|-------------|
+| `npm run build` | Compile the TypeScript server in `src/mcp`. |
+| `npm run pack` | Build the server and pack it into `dist/lokka.mcpb`. |
+| `npm run validate` | Validate `manifest.json` against the MCPB schema. |
+
+#### Installing the extension
+
+1. Open Claude Desktop and go to **Settings > Extensions**.
+2. Drag and drop `dist/lokka.mcpb` onto the Extensions page (or double-click the file).
+3. Click **Install**, then configure the extension settings as needed:
+   - Leave everything blank for interactive sign-in with the default Lokka app.
+   - Fill in **Tenant ID**, **Client ID**, and **Client secret** (or **Certificate path** + enable **Use certificate authentication**) for app-only authentication.
+   - Enable **Use client-provided tokens** if the client will supply access tokens itself.
+4. Enable the extension. Claude Desktop will launch the bundled server directly — no separate Node.js install or `npx` invocation required, since dependencies are packaged inside the `.mcpb` file.
+
+#### Known issue: extension crashes instantly under Claude Desktop
+
+As of Claude Desktop 1.20186.0 on macOS, MCPB extensions and org-managed Connectors fail to
+start: the server process is killed within ~100ms of the `initialize` handshake, before any
+server code can run, regardless of auth mode or configuration. This reproduces with a clean
+install and is not specific to Lokka's code — the same server works correctly when run as a
+plain `mcpServers` entry (see [Manual installation](#manual-installation) above), which spawns
+the server as a normal subprocess using the system's `node` instead of Claude Desktop's bundled
+runtime. Until this is fixed upstream, prefer manual installation over the `.mcpb` extension.

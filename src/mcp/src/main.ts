@@ -8,16 +8,25 @@ import { logger } from "./logger.js";
 import { AuthManager, AuthConfig, AuthMode } from "./auth.js";
 import { LokkaClientId, LokkaDefaultTenantId, LokkaDefaultRedirectUri, getDefaultGraphApiVersion } from "./constants.js";
 
+process.on("uncaughtException", (error) => {
+  logger.error("uncaughtException", error);
+  process.exit(1);
+});
+process.on("unhandledRejection", (reason) => {
+  logger.error("unhandledRejection", reason as any);
+  process.exit(1);
+});
+
 // Set up global fetch for the Microsoft Graph client
 (global as any).fetch = fetch;
 
 // Create server instance
 const server = new McpServer({
   name: "Lokka-Microsoft",
-  version: "0.2.0", // Updated version for token-based auth support
+  version: "2.1.3",
 });
 
-logger.info("Starting Lokka Multi-Microsoft API MCP Server (v0.2.0 - Token-Based Auth Support)");
+logger.info("Starting Lokka Multi-Microsoft API MCP Server (v2.1.3)");
 
 // Initialize authentication and clients
 let authManager: AuthManager | null = null;
@@ -58,7 +67,7 @@ function validateAzurePath(path: string): void {
     { pattern: /@/, reason: "contains @ (host-escape character)" },
     { pattern: /\/{2,}/, reason: "contains double slashes (protocol-relative URL)" },
     { pattern: /^https?:\/\//i, reason: "is an absolute URL" },
-    { pattern: /\\/g, reason: "contains backslashes" },
+    { pattern: /\\/, reason: "contains backslashes" },
   ];
 
   for (const { pattern, reason } of forbiddenPatterns) {
