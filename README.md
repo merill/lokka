@@ -225,6 +225,12 @@ The configuration of the server is done using environment variables. The followi
 - Interactive and Token-based Authentication (v0.2.0) - [@darrenjrobinson](https://github.com/darrenjrobinson)
 - Certificate Authentication (v0.2.1) - [@nitzpo](https://github.com/nitzpo)
 
+## Sponsors
+
+Lokka is free and ad-free, with no investors behind it. If it saves you time, please consider [sponsoring me on GitHub](https://github.com/sponsors/merill). 💙
+
+<a href="https://github.com/sponsors/merill"><img src="https://raw.githubusercontent.com/merill/sponsors/main/sponsors.svg" alt="Sponsors"></a>
+
 ## Installation
 
 To use this server with the Claude Desktop app, add the following configuration to the "mcpServers" section of your
